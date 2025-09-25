@@ -82,7 +82,7 @@ object Essentials {
 
   // wait for completion (async)
   aFuture.onComplete {
-    case Failure(exception) => println("exception")
+    case Failure(exception) => println(s"exception $exception")
     case Success(value) => println(s"Meaning of life is $value")
   }
 

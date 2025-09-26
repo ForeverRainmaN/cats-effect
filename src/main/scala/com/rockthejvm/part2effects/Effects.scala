@@ -1,7 +1,7 @@
 package com.rockthejvm.part2effects
 
 import scala.concurrent.Future
-import scala.util.Success
+import scala.io.StdIn
 
 object Effects {
 
@@ -73,14 +73,33 @@ object Effects {
     42
   })
 
-  def processData(data: String): Future[Int] = Future {
-    println(s"Начинаем обработку: $data")
-    Thread.sleep(1000)
-    data.length
-  }
+  val clock: MyIO[Long] = MyIO(() => System.currentTimeMillis())
+
+  def measure[A](computation: MyIO[A]): MyIO[Long] =
+    for {
+      startTime <- clock
+      _ <- computation
+      finishTime <- clock
+    } yield finishTime - startTime
+  /*
+     clock.flatMap(startTime => computation.flatMap(_ => clock.map(finishTime => finishTime - startTime)))
+
+      clock.map(finishTime => finishTime - startTime) = MyIO(() => System.currentTimeMillis() - startTime)
+      => clock.flatMap(startTime => computation.flatMap(_ => MyIO(() => System.currentTimeMillis() - startTime)))
+
+      computation.flatMap(lambda) = MyIO(() => Lambda(___COM___).unsafeRun())
+                                  = MyIO(() => System.currentTimeMillis() - startTime)).unsafeRun())
+                                  = MyIO(() => System.currentTimeMillis() - startTime)
+   */
+
+  def printToConsole: MyIO[Unit] = MyIO(() => println("I love Scala!"))
+
+  def readInputFromConsoleIO: MyIO[String] = MyIO(() => StdIn.readLine())
 
   def main(args: Array[String]): Unit = {
-    anIO.unsafeRun()
-    val res = processData("hello").foreach(println)
+    println(clock.unsafeRun())
+    println(measure(MyIO(() => List(1, 2, 3, 4, 5, 6, 7).map(x => x * 2))).unsafeRun())
+    printToConsole.unsafeRun()
+    println(readInputFromConsoleIO.unsafeRun())
   }
 }

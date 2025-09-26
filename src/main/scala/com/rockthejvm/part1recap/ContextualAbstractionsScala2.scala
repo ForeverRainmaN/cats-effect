@@ -15,7 +15,7 @@ object ContextualAbstractionsScala2 {
   // extension method
   val greeting = "Peter".greet() // new ImpersonableString("Peter").greet()
 
-  // example: scala.concurent.duratiion
+  // example: scala.concurent.duration
 
   import scala.concurrent.duration.*
 

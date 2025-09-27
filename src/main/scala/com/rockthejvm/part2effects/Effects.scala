@@ -87,19 +87,18 @@ object Effects {
       clock.map(finishTime => finishTime - startTime) = MyIO(() => System.currentTimeMillis() - startTime)
       => clock.flatMap(startTime => computation.flatMap(_ => MyIO(() => System.currentTimeMillis() - startTime)))
 
-      computation.flatMap(lambda) = MyIO(() => Lambda(___COM___).unsafeRun())
+      computation.flatMap(lambda) = MyIO(() => Lambda(___COMP___).unsafeRun())
                                   = MyIO(() => System.currentTimeMillis() - startTime)).unsafeRun())
-                                  = MyIO(() => System.currentTimeMillis() - startTime)
+                                  = MyIO(() => System.currentTimeMillis()_after_computation - startTime)
+      => clock.flatMap(start => MyIO(() => System.currentTimeMillis()_after_computation - startTime))
+      = MyIO(() => lambda().unsafeRun())
    */
 
-  def printToConsole: MyIO[Unit] = MyIO(() => println("I love Scala!"))
+  def printToConsole(line: String): MyIO[Unit] = MyIO(() => println(line))
 
   def readInputFromConsoleIO: MyIO[String] = MyIO(() => StdIn.readLine())
 
   def main(args: Array[String]): Unit = {
-    println(clock.unsafeRun())
-    println(measure(MyIO(() => List(1, 2, 3, 4, 5, 6, 7).map(x => x * 2))).unsafeRun())
-    printToConsole.unsafeRun()
-    println(readInputFromConsoleIO.unsafeRun())
+
   }
 }

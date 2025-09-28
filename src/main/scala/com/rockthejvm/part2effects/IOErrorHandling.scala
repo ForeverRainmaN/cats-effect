@@ -43,9 +43,9 @@ object IOErrorHandling {
   def handleIOErrorWith[A](io: IO[A])(handler: Throwable => IO[A]): IO[A] =
     io.redeemWith(handler, IO.pure)
 
+//  aFailure.handleErrorWith()
+
   def main(args: Array[String]): Unit = {
-    
+
   }
-
-
 }

@@ -1,6 +1,10 @@
 package com.rockthejvm.part3concurrency
 
-import cats.effect.{Fiber, IO, IOApp}
+import cats.effect.*
+import cats.effect.kernel.Outcome.{Canceled, Errored, Succeeded}
+
+import scala.concurrent.duration.*
+
 
 object Fibers extends IOApp.Simple {
 
@@ -26,13 +30,46 @@ object Fibers extends IOApp.Simple {
   } yield ()
 
   // joining a fiber
-  def runOnSomeOtherThread[A](io: IO[A]) = for {
+  def runOnSomeOtherThread[A](io: IO[A]): IO[Outcome[IO, Throwable, A]] = for {
     fib <- io.start
     result <- fib.join // an effect which waits for the fiber to terminate
   } yield result
 
+  /*
+    IO[ResultType of fib.join]
+    fib.join = Outcome[IO, Throwable, A]
 
-  override def run: IO[Unit] =
-    runOnSomeOtherThread(meaninngOfLife) // IO(Succeeded(IO(42)))
-      .myDebug.void
+    possible outcomes:
+    - success with an IO
+    - failure with an exception
+    - canceled
+   */
+
+  val someIOOnAnotherThread = runOnSomeOtherThread(meaninngOfLife)
+
+  val someResultFromAnotherThread = someIOOnAnotherThread.flatMap {
+    case Succeeded(effect) => effect
+    case Errored(e) => IO(0)
+    case Canceled() => IO(0)
+  }
+
+  def throwOnAnotherThread() = for {
+    fib <- IO.raiseError[Int](new RuntimeException("no number for you")).start
+    result <- fib.join
+  } yield result
+
+  def testCancel() = {
+    val task = IO("starting").myDebug >> IO.sleep(1.second) >> IO("done").myDebug
+    // onCancel is a "finalizer", allowing you to free up resources in case you get cancelled
+    val taskWithCancellationHandler = task.onCancel(IO("I'm being cancelled!").myDebug.void)
+
+    for {
+      fib <- taskWithCancellationHandler.start // on a separate thread
+      _ <- IO.sleep(500.millis) >> IO("canceling").myDebug // running on the calling thread
+      _ <- fib.cancel // sends cancellation signal from the calling thread
+      result <- fib.join // waits the result in the calling thread
+    } yield result
+  }
+
+  override def run: IO[Unit] = testCancel().myDebug.void
 }

@@ -71,5 +71,76 @@ object Fibers extends IOApp.Simple {
     } yield result
   }
 
-  override def run: IO[Unit] = testCancel().myDebug.void
+  def processResultsFromFiber[A](io: IO[A]): IO[A] = {
+    val res = for {
+      fib <- io.start
+      result <- fib.join
+    } yield result
+
+    res.flatMap {
+      case Succeeded(fa) => fa
+      case Errored(err) => IO.raiseError(err)
+      case Canceled() => IO.raiseError(new RuntimeException("Canceled"))
+    }
+  }
+
+  def tupleIOs[A, B](ioa: IO[A], iob: IO[B]): IO[(A, B)] = {
+    val effect = for {
+      fib1 <- ioa.start
+      fib2 <- iob.start
+      result1 <- fib1.join
+      result2 <- fib2.join
+    } yield (result1, result2)
+
+    effect.flatMap {
+      case (Succeeded(fa), Succeeded(fb)) => for {
+        a <- fa
+        b <- fb
+      } yield (a, b)
+      case (Errored(e), _) => IO.raiseError(e)
+      case (_, Errored(e)) => IO.raiseError(e)
+      case _ => IO.raiseError(new RuntimeException("Some computation canceled"))
+    }
+  }
+
+  def testEx2() = {
+    val firstIO = IO.sleep(2.seconds) *> IO(1).myDebug
+    val secondIO = IO.sleep(3.seconds) *> IO(2).myDebug
+
+    tupleIOs(firstIO, secondIO)
+  }
+
+  def timeOut[A](io: IO[A], duration: FiniteDuration): IO[A] = {
+    val computation = for {
+      fib <- io.start
+      _ <- (IO.sleep(duration) >> fib.cancel).start // careful - fibers can leak
+      result <- fib.join
+    } yield result
+
+    computation.flatMap {
+      case Succeeded(fa) => fa
+      case Errored(e) => IO.raiseError(e)
+      case Canceled() => IO.raiseError(new RuntimeException("Computation canceled"))
+    }
+  }
+
+  def testEx3() = {
+    val aComputation = IO("Starting").myDebug >> IO.sleep(1.second) >> IO("Done").myDebug >> IO(42)
+    timeOut(aComputation, 2.seconds).myDebug.void
+  }
+
+  override def run: IO[Unit] = testEx3()
 }
+
+/*
+val effect = for {
+      fib1 <- ioa.start.handleErrorWith(IO.raiseError).onCancel {
+        IO.raiseError(new RuntimeException("Cancelled"))
+      }
+      fib2 <- iob.start.handleErrorWith(IO.raiseError).onCancel {
+        IO.raiseError(new RuntimeException("Cancelled"))
+      }
+      result1 <- fib1.join
+      result2 <- fib2.join
+    } yield (result1, result2)
+ */

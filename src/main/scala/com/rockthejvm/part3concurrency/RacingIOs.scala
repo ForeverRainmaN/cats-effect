@@ -46,9 +46,23 @@ object RacingIOs extends IOApp.Simple {
     }
   }
 
-  def timeOut[A](io: IO[A], duration: FiniteDuration): IO[A] = ???
+  def timeOut[A](io: IO[A], duration: FiniteDuration): IO[A] =
+    val first: IO[Either[A, Unit]] = IO.race(io, IO.sleep(duration))
+    first.flatMap {
+      case Left(value) => IO(value)
+      case Right(_) => IO.raiseError(new RuntimeException("timeout"))
+    }
 
-  def unrace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] = ???
+  def unrace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] =
+    val raceResult = IO.racePair(ioa, iob)
+//    raceResult.flatMap {
+//      case Left((winner, loserFiber)) => {
+//        val asd = for {
+//          res <- loserFiber.join
+//        } yield res
+//        IO(asd)
+      }
+    }
 
   def simpleRace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] = ???
 

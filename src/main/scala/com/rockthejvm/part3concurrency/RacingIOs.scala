@@ -46,5 +46,11 @@ object RacingIOs extends IOApp.Simple {
     }
   }
 
-  override def run = testRace().myDebug.void
+  def timeOut[A](io: IO[A], duration: FiniteDuration): IO[A] = ???
+
+  def unrace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] = ???
+
+  def simpleRace[A, B](ioa: IO[A], iob: IO[B]): IO[Either[A, B]] = ???
+
+  override def run = testRacePair().void
 }

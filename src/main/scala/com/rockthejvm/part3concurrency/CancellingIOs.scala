@@ -54,7 +54,7 @@ object CancellingIOs extends IOApp.Simple {
    */
 
   val inputPassword = IO("Input password:").myDebug >> IO("(typing password)").myDebug >> IO.sleep(2.seconds) >> IO("RockTheJVM1!")
-  val verifyPassword = (pw: String) => IO("verifying...").myDebug >> IO.sleep(5.seconds) >> IO(pw == "RockTheJVM1!")
+  val verifyPassword = (pw: String) => IO("verifying...").myDebug >> IO.sleep(2.seconds) >> IO(pw == "RockTheJVM1!")
 
   val authFlow: IO[Unit] = IO.uncancelable { poll =>
     for {
@@ -75,6 +75,17 @@ object CancellingIOs extends IOApp.Simple {
     Poll Ccalls are "gaps opened" in the uncancelable region.
    */
 
-  override def run = authProgram
+  val cancelBeforeMol = IO.canceled >> IO(42).myDebug
+  val uncancelableMol = IO.uncancelable(_ => IO.canceled >> IO(42).myDebug)
+  // uncancelable will eliminate ALL cancel points (excluding poll calls)
+
+  //
+  val invincibleAuthProgram = for {
+    authFib <- IO.uncancelable(_ => authFlow).start
+    _ <- IO.sleep(3.seconds) >> IO("Authentication timeout, attempting cancel...").myDebug >> authFib.cancel
+    _ <- authFib.join
+  } yield ()
+
+  override def run = invincibleAuthProgram.void
 
 }

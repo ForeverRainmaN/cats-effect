@@ -4,7 +4,6 @@ import cats.effect.Outcome.{Canceled, Errored, Succeeded}
 import cats.effect.{Fiber, IO, IOApp, Outcome}
 import com.rockthejvm.utils.*
 
-import scala.concurrent.CancellationException
 import scala.concurrent.duration.*
 
 object RacingIOs extends IOApp.Simple {
@@ -98,6 +97,6 @@ object RacingIOs extends IOApp.Simple {
     }
   }
 
-  override def run = ???
+  override def run = IO(println("hi!"))
 }
 

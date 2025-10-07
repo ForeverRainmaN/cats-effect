@@ -86,6 +86,20 @@ object CancellingIOs extends IOApp.Simple {
     _ <- authFib.join
   } yield ()
 
-  override def run = invincibleAuthProgram.void
+  def threeStepProgram(): IO[Unit] = {
+    val sequence = IO.uncancelable { poll =>
+      poll(IO("cancelable").myDebug >> IO.sleep(1.second) >> IO("cancelable end").myDebug) >>
+        IO("uncancelable").myDebug >> IO.sleep(1.second) >> IO("uncancelable end").myDebug >>
+        poll(IO("second cancelable").myDebug >> IO.sleep(1.second) >> IO("second cancelable end").myDebug)
+    }
+
+    for {
+      fib <- sequence.start
+      _ <- IO.sleep(1500.millis) >> IO("CANCELING").myDebug >> fib.cancel
+      _ <- fib.join
+    } yield ()
+  }
+
+  override def run = threeStepProgram()
 
 }

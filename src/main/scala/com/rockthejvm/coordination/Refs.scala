@@ -82,5 +82,75 @@ object Refs extends IOApp.Simple {
     } yield ()
   }
 
-  override def run: IO[Unit] = demoConcurrentWorkPure()
+  import scala.concurrent.duration.*
+
+  def tickingClockImpure(): IO[Unit] = {
+    var ticks: Long = 0L
+
+    def tickingClock: IO[Unit] = for {
+      _ <- IO.sleep(1.second)
+      _ <- IO(System.currentTimeMillis()).myDebug
+      _ <- IO(ticks += 1) // not thread safe
+      _ <- tickingClock
+    } yield ()
+
+    def printTicks: IO[Unit] = for {
+      _ <- IO.sleep(5.seconds)
+      _ <- IO(s"TICKS: $ticks").myDebug
+      _ <- printTicks
+    } yield ()
+
+    for {
+      _ <- (tickingClock, printTicks).parTupled
+    } yield ()
+  }
+
+  def tickingClockPure: IO[Unit] = {
+    def tickingClock(ref: Ref[IO, Int]): IO[Unit] = for {
+      _ <- IO.sleep(1.second)
+      _ <- IO(System.currentTimeMillis()).myDebug
+      _ <- ref.update(_ + 1)
+      _ <- tickingClock(ref)
+    } yield ()
+
+    def printTicks(ref: Ref[IO, Int]): IO[Unit] = for {
+      _ <- IO.sleep(5.seconds)
+      value <- ref.get
+      _ <- IO(s"TICKS: $value").myDebug
+      _ <- printTicks(ref)
+    } yield ()
+
+    for {
+      ref <- IO.ref(0)
+      _ <- (tickingClock(ref), printTicks(ref)).parTupled
+    } yield ()
+  }
+
+  def tickingClockWeird(): IO[Unit] = {
+    val ticks = Ref[IO].of(0)
+
+    def tickingClock: IO[Unit] = for {
+      t <- ticks // will give you a NEW REF
+      _ <- IO.sleep(1.second)
+      _ <- IO(System.currentTimeMillis()).myDebug
+      _ <- t.update(_ + 1) // not thread safe
+      _ <- tickingClock
+    } yield ()
+
+    def printTicks: IO[Unit] = for {
+      t <- ticks // will give you a NEW REF
+      _ <- IO.sleep(5.seconds)
+      currentTicks <- t.get
+      _ <- IO(s"TICKS: $currentTicks").myDebug
+      _ <- printTicks
+    } yield ()
+
+    for {
+      _ <- (tickingClock, printTicks).parTupled
+    } yield ()
+  }
+
+
+  override def run: IO[Unit] = tickingClockPure
+
 }

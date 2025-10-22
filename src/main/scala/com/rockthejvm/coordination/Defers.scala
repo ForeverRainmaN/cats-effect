@@ -114,12 +114,55 @@ object Defers extends IOApp.Simple {
     } yield ()
   }
 
+  def eggBoiler(): IO[Unit] = {
+    def eggReadNotification(signal: Deferred[IO, Unit]) = for {
+      _ <- IO("Egg boiling on some other fiber, waiting...").myDebug
+      _ <- signal.get
+      _ <- IO("EGG READY").myDebug
+    } yield ()
+
+    def tickingClock(counter: Ref[IO, Int], signal: Deferred[IO, Unit]): IO[Unit] = for {
+      _ <- IO.sleep(1.second)
+      count <- counter.updateAndGet(_ + 1)
+      _ <- IO(count).myDebug
+      _ <- if (count >= 10) signal.complete(()) else tickingClock(counter, signal)
+    } yield ()
+
+    for {
+      counter <- Ref[IO].of(0)
+      signal <- Deferred[IO, Unit]
+      notifierFib <- eggReadNotification(signal).start
+      clock <- tickingClock(counter, signal).start
+      _ <- notifierFib.join
+      _ <- clock.join
+    } yield ()
+  }
+
   type RaceResult[A, B] = Either[
     (Outcome[IO, Throwable, A], Fiber[IO, Throwable, B]),
     (Fiber[IO, Throwable, A], Outcome[IO, Throwable, B])
   ]
 
-  def ourRacePair[A, B](ioa: IO[A], iob: IO[B]): IO[RaceResult[A, B]] =
+  type EitherOutcome[A, B] = Either[Outcome[IO, Throwable, A], Outcome[IO, Throwable, B]]
+
+  def ourRacePair[A, B](ioa: IO[A], iob: IO[B]): IO[RaceResult[A, B]] = IO.uncancelable { poll =>
+    for {
+      signal <- Deferred[IO, EitherOutcome[A, B]]
+      fibA <- ioa.guaranteeCase(outcomeA => signal.complete(Left(outcomeA)).void).start
+      fibB <- iob.guaranteeCase(outcomeB => signal.complete(Right(outcomeB)).void).start
+      result <- poll(signal.get).onCancel {
+        for {
+          cancelFibA <- fibA.cancel.start
+          cancelFibB <- fibB.cancel.start
+          _ <- cancelFibA.join
+          _ <- cancelFibB.join
+        } yield ()
+      }
+    } yield result match {
+      case Left(outcomeA) => Left((outcomeA, fibB))
+      case Right(outcomeB) => Right((fibA, outcomeB))
+    }
+  }
 
 
   override def run: IO[Unit] = notificationClock()

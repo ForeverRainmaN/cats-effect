@@ -1,6 +1,7 @@
 package com.rockthejvm.coordination
 
-import cats.effect.{Deferred, IO, IOApp, Ref}
+import cats.effect.*
+import cats.effect.kernel.Outcome
 import com.rockthejvm.utils.*
 
 import scala.concurrent.duration.*
@@ -97,5 +98,29 @@ object Defers extends IOApp.Simple {
     } yield ()
   }
 
-  override def run: IO[Unit] = fileNotifierWithDeferred()
+  def notificationClock(): IO[Unit] = {
+    def incrementer(counter: Ref[IO, Int], signal: Deferred[IO, Unit]): IO[Unit] = for {
+      _ <- IO.sleep(1.second)
+      latestContent <- counter.updateAndGet(x => x + 1)
+      _ <- IO(s"count: $latestContent").myDebug
+      _ <- if (latestContent == 10) signal.complete(()) else incrementer(counter, signal)
+    } yield ()
+
+    for {
+      contentRef <- Ref[IO].of(0)
+      signal <- Deferred[IO, Unit]
+      _ <- incrementer(contentRef, signal).start
+      _ <- signal.get >> IO("time's up").myDebug
+    } yield ()
+  }
+
+  type RaceResult[A, B] = Either[
+    (Outcome[IO, Throwable, A], Fiber[IO, Throwable, B]),
+    (Fiber[IO, Throwable, A], Outcome[IO, Throwable, B])
+  ]
+
+  def ourRacePair[A, B](ioa: IO[A], iob: IO[B]): IO[RaceResult[A, B]] =
+
+
+  override def run: IO[Unit] = notificationClock()
 }
